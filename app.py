@@ -1,180 +1,173 @@
 import streamlit as st
-import PyPDF2
 
-# Page Settings
-st.set_page_config(page_title="AI Resume Screening System", page_icon="🤖")
+from resume_parser import extract_text_from_pdf
+from skill_analyzer import analyze_skills
+from resume_scorer import calculate_score
+from job_role_predictor import predict_job_role
+from report_generator import generate_report
 
-# Title
-st.title("🤖 AI Resume Screening System")
-st.write("Welcome to my AI Resume Screening System!")
-# Sidebar
-st.sidebar.title("🤖 AI Resume Screening System")
-st.sidebar.write("### Developed by")
-st.sidebar.success("Vannadi Pallavi")
 
-st.sidebar.markdown("---")
-
-st.sidebar.write("### 📋 Features")
-st.sidebar.write("✅ PDF Resume Upload")
-st.sidebar.write("✅ Resume Score")
-st.sidebar.write("✅ Skill Analysis")
-st.sidebar.write("✅ Job Role Prediction")
-
-st.sidebar.markdown("---")
-
-st.sidebar.info("Upload your resume to get instant analysis.")
-
-st.sidebar.markdown("---")
-
-st.sidebar.write("### 📌 About Project")
-
-st.sidebar.write(
-    "An AI-powered Resume Screening System that analyzes resumes, "
-    "checks skills, calculates resume score, and suggests suitable job roles."
+st.set_page_config(
+    page_title="AI Resume Screening System",
+    page_icon="📄",
+    layout="wide"
 )
 
 
-# Upload PDF
-uploaded_file = st.file_uploader("📄 Upload your Resume (PDF)", type="pdf")
+st.title("📄 AI-Powered Resume Screening and Job Role Recommendation System")
 
-if uploaded_file is not None:
+st.write(
+    "Upload a PDF resume to analyze skills, calculate a resume score, "
+    "and recommend a suitable job role."
+)
 
-    # Read PDF
-    pdf_reader = PyPDF2.PdfReader(uploaded_file)
 
-    text = ""
-    for page in pdf_reader.pages:
-        extracted = page.extract_text()
-        if extracted:
-            text += extracted
+uploaded_file = st.file_uploader(
+    "Upload your Resume (PDF only)",
+    type=["pdf"]
+)
 
-    # Show Resume
-    st.subheader("📄 Resume Content")
-    st.write(text)
 
-    st.success("✅ Resume uploaded successfully!")
+if uploaded_file:
 
-    # Skills List
-    skills = [
-        "Python",
-        "Machine Learning",
-        "Data Structures",
-        "Streamlit",
-        "Pandas",
-        "NumPy"
-    ]
+    try:
+        # Step 1: Extract resume text
+        text = extract_text_from_pdf(uploaded_file)
 
-    # Calculate Score
-    score = 0
+        if not text.strip():
+            st.error("No readable text was found in the PDF.")
+            st.stop()
 
-    for skill in skills:
-        if skill.lower() in text.lower():
-            score += 100 / len(skills)
+        # Step 2: Analyze skills
+        analysis = analyze_skills(text)
 
-    # Show Score
-    st.subheader("📊 Resume Score")
-    st.progress(int(score))
-    st.write(f"Score: {int(score)}/100")
+        # Step 3: Calculate score
+        score = calculate_score(
+            text,
+            analysis["matched_skills"]
+        )
 
-    # Feedback
-    if score >= 80:
-        st.success("🌟 Excellent Resume! You are job-ready.")
-    elif score >= 60:
-        st.info("👍 Good Resume! Add a few more skills to make it stronger.")
-    else:
-        st.warning("⚠️ Your resume needs improvement. Add more technical skills and projects.")
+        # Step 4: Predict job role using ML
+        role, similarity = predict_job_role(text)
 
-    # Required Skills
-    required_skills = [
-        "Python",
-        "Machine Learning",
-        "Data Structures",
-        "Streamlit",
-        "Pandas",
-        "NumPy",
-        "SQL",
-        "Deep Learning"
-    ]
+        # Dashboard
+        st.subheader("📊 Resume Analysis")
 
-    matched_skills = []
-    missing_skills = []
+        col1, col2, col3 = st.columns(3)
 
-    for skill in required_skills:
-        if skill.lower() in text.lower():
-            matched_skills.append(skill)
-        else:
-            missing_skills.append(skill)
+        col1.metric(
+            "Resume Score",
+            f"{score}/100"
+        )
 
-                # Dashboard Metrics
-    col1, col2, col3 = st.columns(3)
+        col2.metric(
+            "Matched Skills",
+            len(analysis["matched_skills"])
+        )
 
-    col1.metric("📊 Resume Score", f"{int(score)}%")
-    col2.metric("✅ Skills Matched", len(matched_skills))
-    col3.metric("❌ Skills Missing", len(missing_skills))
+        col3.metric(
+            "Recommended Role",
+            role
+        )
 
-    # Matched Skills
-    st.markdown("### ✅ Matched Skills")
-    for skill in matched_skills:
-        st.write(f"✔️ {skill}")
+        # Extracted text
+        st.subheader("1. Extracted Resume Text")
 
-    # Missing Skills
-    st.markdown("### ❌ Missing Skills")
-    for skill in missing_skills:
-        st.write(f"❌ {skill}")
+        with st.expander("View Extracted Text"):
+            st.text(text[:10000])
 
-        # Resume Improvement Suggestions
-    st.markdown("### 💡 Resume Improvement Suggestions")
+        # Skill analysis
+        st.subheader("2. Skill Analysis")
 
-    if len(missing_skills) == 0:
-        st.success("🎉 Excellent! Your resume contains all the required skills.")
-    else:
-        st.write("You can improve your resume by learning or adding these skills:")
-        for skill in missing_skills:
-            st.write(f"➡️ Learn {skill}")
-        
+        left, right = st.columns(2)
 
-    # Job Role Prediction
-    st.markdown("### 💼 Suggested Job Role")
+        with left:
+            st.write("### ✅ Matched Skills")
 
-    if "machine learning" in text.lower() and "python" in text.lower():
-        st.success("🤖 AI / Machine Learning Engineer")
+            if analysis["matched_skills"]:
+                for skill in analysis["matched_skills"]:
+                    st.success(skill)
+            else:
+                st.write("No matching skills detected.")
 
-    elif "python" in text.lower():
-        st.success("🐍 Python Developer")
+        with right:
+            st.write("### ⚠️ Missing Skills")
 
-    elif "data structures" in text.lower():
-        st.success("💻 Software Developer")
+            for skill in analysis["missing_skills"][:10]:
+                st.warning(skill)
 
-    elif "sql" in text.lower():
-        st.success("📊 Data Analyst")
+        # Job recommendation
+        st.subheader("3. Job Role Recommendation")
 
-    else:
-        st.info("🎯 General IT Fresher")
+        st.info(
+            f"Recommended Role: **{role}**"
+        )
 
-     # Download Report
-    st.markdown("### 📥 Download Resume Report")
+        st.write(
+            f"TF-IDF Cosine Similarity: **{similarity:.2f}**"
+        )
 
-    report = f"""
-AI Resume Screening Report
+        # Suggestions
+        st.subheader("4. Resume Improvement Suggestions")
 
-Candidate Resume Analysis
+        suggestions = []
 
-Resume Score: {int(score)}/100
+        if len(analysis["matched_skills"]) < 5:
+            suggestions.append(
+                "Add more relevant technical skills."
+            )
 
-Matched Skills:
-{', '.join(matched_skills)}
+        if "education" not in text.lower():
+            suggestions.append(
+                "Add a clear Education section."
+            )
 
-Missing Skills:
-{', '.join(missing_skills)}
+        if "project" not in text.lower():
+            suggestions.append(
+                "Add relevant academic or personal projects."
+            )
 
-Suggested Job Role:
-AI / Machine Learning Engineer
+        if (
+            "experience" not in text.lower()
+            and "internship" not in text.lower()
+        ):
+            suggestions.append(
+                "Add internship or practical experience when applicable."
+            )
 
-"""
+        if not suggestions:
+            suggestions.append(
+                "The resume contains the main sections and skills detected by the system."
+            )
 
-    st.download_button(
-        label="📄 Download Report",
-        data=report,
-        file_name="Resume_Analysis_Report.txt",
-        mime="text/plain"
-    ) 
+        for suggestion in suggestions:
+            st.write("•", suggestion)
+
+        # Report
+        st.subheader("5. Download Report")
+
+        report = generate_report(
+            text,
+            score,
+            analysis,
+            role,
+            similarity,
+            suggestions
+        )
+
+        st.download_button(
+            label="⬇️ Download Analysis Report",
+            data=report,
+            file_name="resume_analysis_report.txt",
+            mime="text/plain"
+        )
+
+        st.success("Resume analysis completed successfully!")
+
+        st.caption("Developed by Vannadi Pallavi")
+
+    except Exception as error:
+
+        st.error(
+            f"Unable to process the resume: {error}"
+        )
